@@ -97,7 +97,7 @@
 
   /* ---- search ---- */
   .search-row{ position:relative; }
-  input[type="text"]{
+  input[type="text"], input[type="email"], input[type="tel"]{
     width:100%;
     font-family:'IBM Plex Sans', sans-serif;
     font-size:16px;
@@ -109,7 +109,8 @@
     outline:none;
     transition:border-color .15s ease;
   }
-  input[type="text"]:focus{ border-color:var(--seal); }
+  input[type="text"]:focus, input[type="email"]:focus, input[type="tel"]:focus{ border-color:var(--seal); }
+  #searchCard{ overflow:visible; }
   .suggestions{
     position:absolute;
     left:0; right:0; top:calc(100% + 6px);
@@ -118,7 +119,8 @@
     border-radius:var(--radius);
     box-shadow:0 8px 24px rgba(24,34,51,.1);
     z-index:5;
-    overflow:hidden;
+    max-height:280px;
+    overflow-y:auto;
     display:none;
   }
   .suggestions.show{ display:block; }
@@ -127,17 +129,24 @@
     cursor:pointer;
     display:flex;
     justify-content:space-between;
-    align-items:center;
+    align-items:flex-start;
+    gap:10px;
     border-bottom:1px solid var(--line);
     font-size:14px;
   }
-  .suggestion:last-child{ border-bottom:none; }
-  .suggestion:hover{ background:var(--parchment-deep); }
+  .suggestion span:first-child{
+    white-space:normal;
+    word-break:break-word;
+  }
   .suggestion .num{
+    flex:none;
+    white-space:nowrap;
     font-family:'IBM Plex Mono', monospace;
     font-size:11.5px;
     color:var(--ink-soft);
   }
+  .suggestion:last-child{ border-bottom:none; }
+  .suggestion:hover{ background:var(--parchment-deep); }
   .hint{
     margin-top:9px;
     font-size:12.5px;
@@ -368,10 +377,52 @@
       <div class="range-sub" id="rangeSub">Typical turnaround: —</div>
       <div class="breakdown" id="breakdown"></div>
       <div class="btn-row">
-        <button class="btn btn-primary" id="ctaCall">Book a 15‑minute call</button>
+        <a class="btn btn-primary" id="ctaCall" href="https://zcal.co/sjsmith/30min" target="_blank" rel="noopener" style="text-decoration:none; display:inline-block;">Book a 30‑minute call</a>
         <button class="btn btn-ghost" id="ctaQuote">Request a fixed‑fee quote</button>
       </div>
       <div class="disclaimer">This is an automated estimate based on public record data and your answers, not a binding quote. A fixed fee is confirmed after a short call to check for anything the record can't show — e.g. related agreements, off‑register arrangements, or family circumstances.</div>
+    </div>
+  </div>
+
+  <!-- QUOTE REQUEST FORM -->
+  <div class="card hidden fade-in" id="quoteFormCard">
+    <div class="card-head"><span class="k">Request a fixed‑fee quote</span></div>
+    <div class="card-body">
+      <form name="quote-request" method="POST" data-netlify="true" netlify-honeypot="bot-field" id="quoteForm">
+        <input type="hidden" name="form-name" value="quote-request" />
+        <p style="position:absolute; left:-9999px;" aria-hidden="true">
+          <label>Leave this field blank: <input name="bot-field" /></label>
+        </p>
+        <input type="hidden" name="company" id="qfCompany" />
+        <input type="hidden" name="estimate" id="qfEstimate" />
+        <input type="hidden" name="complexity" id="qfTier" />
+
+        <div class="field" style="margin-bottom:12px;">
+          <div class="fl">Name</div>
+          <input type="text" name="name" id="qfName" required>
+        </div>
+        <div class="field" style="margin-bottom:12px;">
+          <div class="fl">Email</div>
+          <input type="email" name="email" id="qfEmail" required>
+        </div>
+        <div class="field" style="margin-bottom:16px;">
+          <div class="fl">Phone</div>
+          <input type="tel" name="phone" id="qfPhone" required>
+        </div>
+
+        <div class="btn-row">
+          <button type="submit" class="btn btn-primary" id="qfSubmit">Send request</button>
+        </div>
+      </form>
+      <div class="hidden" id="quoteSuccess">
+        <div class="signal-item" style="font-size:15px;">
+          <svg width="16" height="16" viewBox="0 0 14 14"><circle cx="7" cy="7" r="7" fill="#2f5f4d"/><path d="M4 7l2 2 4-4" stroke="#fff" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span>Thanks for your information — we'll be in touch soon.</span>
+        </div>
+      </div>
+      <div class="hidden" id="quoteError" style="color:#a33; font-size:13.5px; margin-top:10px;">
+        Something went wrong sending your details — please email <a href="mailto:steven@trustlawyer.co.uk">steven@trustlawyer.co.uk</a> directly.
+      </div>
     </div>
   </div>
 
@@ -432,6 +483,9 @@ const QUESTIONS = [
 ];
 
 let companyScore = 0;
+let currentCompanyName = '';
+let currentEstimate = '';
+let currentTier = '';
 let questionScore = 0;
 const answers = {};
 let searchAbort = null;
@@ -515,6 +569,7 @@ function showExtractError(msg){
 }
 
 function showExtract(c){
+  currentCompanyName = c.name;
   companyScore = Math.min(40,
     c.directors * 2 +
     c.charges * 10 +
@@ -627,13 +682,51 @@ function maybeShowResult(){
   document.getElementById('rangeSub').textContent = sub;
   document.getElementById('resultTierLabel').textContent = tierLabel + ' case';
   document.getElementById('breakdown').innerHTML = tags.map(t => `<span class="tag">${t}</span>`).join('');
+  currentEstimate = range;
+  currentTier = tierLabel;
   const rc = document.getElementById('resultCard');
   rc.classList.remove('hidden');
   setTimeout(() => rc.scrollIntoView({behavior:'smooth', block:'start'}), 200);
 }
 
-document.getElementById('ctaCall').addEventListener('click', () => alert('In the live version, this opens your booking calendar.'));
-document.getElementById('ctaQuote').addEventListener('click', () => alert('In the live version, this sends the full record + answers to your inbox as a lead.'));
+function openQuoteForm(){
+  document.getElementById('qfCompany').value = currentCompanyName;
+  document.getElementById('qfEstimate').value = currentEstimate;
+  document.getElementById('qfTier').value = currentTier;
+  document.getElementById('quoteForm').classList.remove('hidden');
+  document.getElementById('quoteSuccess').classList.add('hidden');
+  document.getElementById('quoteError').classList.add('hidden');
+  const card = document.getElementById('quoteFormCard');
+  card.classList.remove('hidden');
+  setTimeout(() => card.scrollIntoView({behavior:'smooth', block:'start'}), 150);
+}
+
+document.getElementById('quoteForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const form = e.target;
+  const submitBtn = document.getElementById('qfSubmit');
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Sending…';
+  document.getElementById('quoteError').classList.add('hidden');
+
+  try {
+    const body = new URLSearchParams(new FormData(form)).toString();
+    const resp = await fetch('/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body
+    });
+    if (!resp.ok) throw new Error('Form submission failed: ' + resp.status);
+    form.classList.add('hidden');
+    document.getElementById('quoteSuccess').classList.remove('hidden');
+  } catch (err) {
+    document.getElementById('quoteError').classList.remove('hidden');
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Send request';
+  }
+});
+
+document.getElementById('ctaQuote').addEventListener('click', openQuoteForm);
 </script>
 </body>
 </html>
