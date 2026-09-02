@@ -1,0 +1,16 @@
+[build]
+  publish = "."
+  functions = "netlify/functions"
+
+[functions]
+  node_bundler = "esbuild"
+
+[[redirects]]
+  from = "/api/search"
+  to = "/.netlify/functions/company-search"
+  status = 200
+
+[[redirects]]
+  from = "/api/detail"
+  to = "/.netlify/functions/company-detail"
+  status = 200
