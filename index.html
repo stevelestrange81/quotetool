@@ -396,6 +396,15 @@
         <input type="hidden" name="company" id="qfCompany" />
         <input type="hidden" name="estimate" id="qfEstimate" />
         <input type="hidden" name="complexity" id="qfTier" />
+        <input type="hidden" name="company_number" id="qfCompanyNumber" />
+        <input type="hidden" name="company_status" id="qfCompanyStatus" />
+        <input type="hidden" name="company_incorporated" id="qfCompanyIncorporated" />
+        <input type="hidden" name="company_address" id="qfCompanyAddress" />
+        <input type="hidden" name="company_sic" id="qfCompanySic" />
+        <input type="hidden" name="directors" id="qfDirectors" />
+        <input type="hidden" name="psc" id="qfPsc" />
+        <input type="hidden" name="charges" id="qfCharges" />
+        <textarea name="questionnaire_answers" id="qfAnswers" style="position:absolute; left:-9999px;" aria-hidden="true"></textarea>
 
         <div class="field" style="margin-bottom:12px;">
           <div class="fl">Name</div>
@@ -484,6 +493,8 @@ const QUESTIONS = [
 
 let companyScore = 0;
 let currentCompanyName = '';
+let currentCompany = null;
+const answerLabels = {};
 let currentEstimate = '';
 let currentTier = '';
 let questionScore = 0;
@@ -570,6 +581,7 @@ function showExtractError(msg){
 
 function showExtract(c){
   currentCompanyName = c.name;
+  currentCompany = c;
   companyScore = Math.min(40,
     c.directors * 2 +
     c.charges * 10 +
@@ -632,6 +644,7 @@ function buildQuestions(){
       body.querySelectorAll(`.chip[data-qi="${qi}"]`).forEach(b => b.classList.remove('selected'));
       btn.classList.add('selected');
       answers[qi] = QUESTIONS[qi].options[oi].pts;
+      answerLabels[qi] = QUESTIONS[qi].options[oi].label;
       recalcQuestionScore();
       updateDial();
       maybeShowResult();
@@ -693,6 +706,21 @@ function openQuoteForm(){
   document.getElementById('qfCompany').value = currentCompanyName;
   document.getElementById('qfEstimate').value = currentEstimate;
   document.getElementById('qfTier').value = currentTier;
+
+  if (currentCompany){
+    document.getElementById('qfCompanyNumber').value = currentCompany.number || '';
+    document.getElementById('qfCompanyStatus').value = currentCompany.status || '';
+    document.getElementById('qfCompanyIncorporated').value = currentCompany.incorporated || '';
+    document.getElementById('qfCompanyAddress').value = currentCompany.address || '';
+    document.getElementById('qfCompanySic').value = currentCompany.sic || '';
+    document.getElementById('qfDirectors').value = currentCompany.directors ?? '';
+    document.getElementById('qfPsc').value = currentCompany.psc ?? '';
+    document.getElementById('qfCharges').value = currentCompany.charges ?? '';
+  }
+
+  const summaryLines = QUESTIONS.map((q, qi) => `${q.q}\n  → ${answerLabels[qi] || '(not answered)'}`);
+  document.getElementById('qfAnswers').value = summaryLines.join('\n\n');
+
   document.getElementById('quoteForm').classList.remove('hidden');
   document.getElementById('quoteSuccess').classList.add('hidden');
   document.getElementById('quoteError').classList.add('hidden');
